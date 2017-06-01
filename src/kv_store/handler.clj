@@ -1,32 +1,50 @@
 (ns kv-store.handler
   (:use [kv-store.store])
   (:require [compojure.core :refer :all]
-            [compojure.route :as route]
-            [ring.middleware.defaults :refer [wrap-defaults site-defaults]]
+            [compojure.route :as compjure.route]
             [ring.middleware.json :refer [wrap-json-body wrap-json-response]]
-            [ring.util.response :refer [response]]))
+            [ring.util.response :as ring.response]))
 
 (declare store)
 
 (def store (->SimpleStore (atom {})))
 
-(defn get-key-handler [request]
-  (let [key (:key (:params request))]
-    (response {:key key :response (.getEntry store key)})))
+(defn parse-constraint
+  [constraint]
+  (let [{:keys [type key val]} constraint]
+    (condp = type
+      "exists" (pred-exists? key)
+      "equals" (pred-equals? key val)
+      "absent" (pred-absent? key)
+      (constantly true))))
 
-(defn set-key-handler [request]
-  (let [key (:key (:params request))
-        val (:val (:params request))
+(defn parse-constraints
+  [body]
+  (map parse-constraint (:constraints body)))
+
+(defn get-key-handler
+  [request]
+  (let [key   (:key (:body request))
+        preds   (parse-constraints (:body request))
+        res   (.getEntry store key preds)]
+    (.println System/out key )
+    (ring.response/response {:key     key
+                             :response res})))
+
+(defn set-key-handler
+  [request]
+  (let [key (:key (:body request))
+        val (:val (:body request))
         res (.setEntry store key val)]
-    (response {:key key :response res})))
+    (ring.response/response {:key      key
+                             :response res})))
 
 (defroutes app-routes
-  (GET "/v1/get/:key" [key] get-key-handler)
-  (GET "/v1/set/:key" [key] set-key-handler)
-  (route/not-found "Not Found"))
+  (POST "/get" [] get-key-handler)
+  (POST "/set" [] set-key-handler)
+  (compojure.route/not-found "Not Found"))
 
 (def app
-  (-> app-routes 
+  (-> app-routes
       (wrap-json-response)
-      (wrap-json-body {:keywords? true :bigdecimals? true})
-      (wrap-defaults site-defaults)))
+      (wrap-json-body {:keywords? true :bigdecimals? true})))

@@ -11,42 +11,42 @@
 ;;  * not-exists key
 
 ;; Each predicate constructor returns an anonymous function that contains the args passed
-(defn pred-equals? [store key val]
-  #(= (:value (.getEntry store key)) val))
+(defn pred-equals? [key val]
+  (fn [store] (= (:value (.getEntry store key)) val)))
 
-(defn pred-exists? [store key]
-  #(not (nil? (:value (.getEntry store key)))))
+(defn pred-exists? [key]
+  (fn [store] (not (nil? (:value (.getEntry store key))))))
 
-(defn pred-absent? [store key]
-  #(nil? (:value (.getEntry store key))))
+(defn pred-absent? [key]
+  (fn [store] (nil? (:value (.getEntry store key)))))
 
 ;; A simple KV store implementation based on a Clojure atom containing a map.
 ;; Assumption that kv passed here is an atom; e.g. (def kv (atom {}))
-(deftype SimpleStore [^{:volatile-mutable true} kv] 
+(deftype SimpleStore [^{:volatile-mutable true} kv]
   IStore
 
-  (setEntry 
+  (setEntry
     [this key val]
     (swap! kv assoc key val)
     {:value val :errors nil})
-    
-  (setEntry 
+
+  (setEntry
     [this key val predicates]
-    (locking kv 
-      (let [results (map #(%) predicates)]
+    (locking kv
+      (let [results (map #(% this) predicates)]
         (if (every? true? results)
           ;; all of the predicates are true, perform the write
           (.setEntry this key val)
           {:value nil :errors "Predicate failed." :results results}))))
 
-  (getEntry 
+  (getEntry
     [this key]
     {:value (get @kv key) :errors nil})
 
-  (getEntry 
+  (getEntry
     [this key predicates]
-    (locking kv
-      (let [results (map #(%) predicates)]
+    (locking @kv
+      (let [results (map (fn [pred] (pred this)) predicates)]
         (if (every? true? results)
           ;; all of the predicates are true, perform the read
           (.getEntry this key)
