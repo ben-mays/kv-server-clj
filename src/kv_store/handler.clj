@@ -24,20 +24,17 @@
 
 (defn get-key-handler
   [request]
-  (let [key   (:key (:body request))
-        preds   (parse-constraints (:body request))
-        res   (.getEntry store key preds)]
-    (.println System/out key )
-    (ring.response/response {:key     key
-                             :response res})))
+  (let [keys  (:keys (:body request))
+        preds (parse-constraints (:body request))
+        res   (.getEntry store keys preds)]
+    (ring.response/response res)))
 
 (defn set-key-handler
   [request]
-  (let [key (:key (:body request))
-        val (:val (:body request))
-        res (.setEntry store key val)]
-    (ring.response/response {:key      key
-                             :response res})))
+  (let [tuples (:tuples (:body request))
+        preds  (parse-constraints (:body request))
+        res    (.setEntry store tuples preds)]
+    (ring.response/response res)))
 
 (defroutes app-routes
   (POST "/get" [] get-key-handler)
